@@ -7,6 +7,8 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from backend.db import get_db
 from backend.models import User
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import Asy n ncSession
 
 # Configuration
 
@@ -35,11 +37,11 @@ def create_token_access(data: dict, expires_delta: Optional[timedelta] = None):
         expire=datetime.utcnow() + expires_delta
     else:
         expire=datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRY)
-        to_encode.update({"exp":expire})
-        encoded_jwt=jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHIM)
-        return encoded_jwt
+    to_encode.update({"exp":expire})
+    encoded_jwt=jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHIM)
+    return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme),db:Session=Depends(get_db)):
+async def get_current_user(token: str = Depends(oauth2_scheme),db:Session=Depends(get_db)):
     """Retrieve the current user based on the provided token."""
     credentials_exception=HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,7 +58,9 @@ def get_current_user(token: str = Depends(oauth2_scheme),db:Session=Depends(get_
     except JWTError:
         raise credentials_exception
     
-    user=db.query(User).filter_by(email=email).first()
+    stmt=select(User).where(User.email==email)
+    result= await db.execute(stmt)
+    user= result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
     return user
